@@ -18,18 +18,13 @@ password = os.getenv("password")
 # Function for doing assignment's subsections
 def do_subsec(subsec, href):
     print(f"-> Subsection: {subsec}")
-    with open("ans.json", "r") as f:
-        ans_data = json.load(f)
-    f.close()
-    if href in ans_data:
-        print("Subsection done")
-        return
     # Driver
     options = Options()
     options.set_preference("media.volume_scale", "0.0")
-    options.add_argument('--headless')
+    # options.add_argument('--headless')
     driver = webdriver.Firefox(options=options)
     wait = WebDriverWait(driver, 30)
+    wait_short = WebDriverWait(driver, 5)
     # Login
     driver.get("https://web.uplearn.co.uk/login")
     wait.until(EC.element_to_be_clickable((By.NAME, "email"))).send_keys(email)
@@ -43,51 +38,37 @@ def do_subsec(subsec, href):
         q_lookup = {}
         sub_type = 'V'
         # x2 speed
-        speed = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/media-controller/media-control-bar/media-playback-rate-button")))
+        speed = wait.until(EC.element_to_be_clickable((By.TAG_NAME, "media-playback-rate-button")))
         while speed.text[-3:].strip() != '2x':
             speed.click()
         # Play video
-        play = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/media-controller/media-control-bar/media-play-button")))
+        play = wait.until(EC.element_to_be_clickable((By.TAG_NAME, "media-play-button")))
         if play.get_attribute('aria-label') == 'play':
             play.click()
         q_last = None
         while True:
             # Video playing
-            try:
-                driver.find_element(By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div/button[2]")
+            if driver.current_url != href:
                 # Contine to next subsection
-                print("Subsection done")
+                print(f"Subsection: [{subsec}] done\n")
+                driver.quit()
                 break
-            except:
-                pass
+            submit = wait_short.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Submit')]")))
+            # Found question
+            vid_time = wait_short.until(EC.presence_of_element_located((By.TAG_NAME, "media-time-display"))).text
+            q_current = []
+            driver.execute_script("arguments[0].click();",submit)
             try:
-                submit = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div/div[2]/div[2]/div/button")))
-                # Found question
-                vid_time = WebDriverWait(driver, 1).until(EC.presence_of_element_located((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/media-controller/media-control-bar/media-time-display"))).text
-                q_current = []
-                submit = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div/div[2]/div[2]/div/button")))
-                driver.execute_script("arguments[0].click();",submit)
-                view_ans = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div/div[2]/div[2]/div/button[1]")))
+                view_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'View feedback')]")))
                 driver.execute_script("arguments[0].click();",view_ans)
                 qn = 0
                 last_q = False
                 # Get all answers
                 while not last_q:
                     qn += 1
-                    if qn == 1:
-                        try:
-                            ans = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
-                        except:
-                            ans = WebDriverWait(driver, 1).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[4]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[4]/div/div/div[1]/div[2]/button[2]")))
-                    else:
-                        try:
-                            ans = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[2]/button[2]")))
-                        except:
-                            ans = WebDriverWait(driver, 1).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
+                    ans = wait_short.until(EC.visibility_of_element_located((By.XPATH, "//*[contains(@class, 'sc-jqVXSH llgvon')]" ))).text
+                    next_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Next') or contains(text(), 'Finish')]" )))
+                    print(ans, next_ans)
                     if next_ans.text == "Finish":
                         last_q = True
                     if ans.find('missed') != -1:
@@ -101,13 +82,12 @@ def do_subsec(subsec, href):
                     else:
                         q_current.append(ans)
                     next_ans.click()
-                if q_current != q_last:
-                    q_lookup[vid_time[:4]] = q_current
-                    q_last = q_current
-                cont = WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div[2]/div/div/div/div[2]/div[2]/div/button[2]")))
-                driver.execute_script("arguments[0].click();",cont)
             except:
-                pass
+                q_current.append("Open question")
+            if q_current != q_last:
+                q_lookup[vid_time[:4]] = q_current
+                q_last = q_current
+            driver.execute_script("arguments[0].click();",wait_short.until(EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Continue')]"))))
     else:
         try:
             q_no = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div/main/div/p/span"))).text
@@ -116,7 +96,6 @@ def do_subsec(subsec, href):
             # Subsection is quiz
             q_lookup = []
             q_last = None
-            sub_type = 'Q'
             q_i = 1
             while q_i <= q_no:
                 q_current = []
@@ -131,18 +110,18 @@ def do_subsec(subsec, href):
                     qn += 1
                     if qn == 1:
                         try:
-                            ans = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
+                            ans = wait_short.until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[1]/div/p/span/span"))).text
+                            next_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
                         except:
                             ans = wait.until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[1]/div[1]/p/span/span"))).text
-                            next_ans = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
+                            next_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[5]/div/div/div[1]/div[2]/button[2]")))
                     else:
                         try:
-                            ans = WebDriverWait(driver, 5).until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[1]/div/p/span/span"))).text
-                            next_ans = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[2]/button[2]")))
+                            ans = wait_short.until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[1]/div/p/span/span"))).text
+                            next_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[2]/button[2]")))
                         except:
-                            ans = wait.until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[1]/div[1]/p/span/span"))).text
-                            next_ans = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[2]/button[2]")))
+                            ans = wait_short.until(EC.visibility_of_element_located((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[1]/div[1]/p/span/span"))).text
+                            next_ans = wait_short.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[6]/div/div/div[1]/div[2]/button[2]")))
                     if next_ans.text == "Finish":
                         last_q = True
                     if ans.find('missed') != -1:
@@ -159,19 +138,13 @@ def do_subsec(subsec, href):
                 if q_current != q_last:
                     q_lookup.append(q_current)
                     q_last = q_current
-                cont = wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div/main/div/div[2]/div[2]/div/button[2]")))
-                driver.execute_script("arguments[0].click();",cont)
+                driver.execute_script("arguments[0].click();",wait.until(EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div/div/div/main/div/div[2]/div[2]/div/button[2]"))))
                 q_i += 1
-            print("Subsection done\n")
+            print(f"Subsection: [{subsec}] done\n")
+            driver.quit()
         except:
             pass
     driver.quit()
-
-    if not href in ans_data:
-        ans_data[href] = {"sub_type":sub_type, "q_lookup":q_lookup}
-        with open("ans.json", 'w') as f:
-            json.dump(ans_data, f, indent=4)
-        f.close()
             
 
 
@@ -277,10 +250,10 @@ def main(asm_arg):
         for subsec in subsecs_href:
             t = threading.Thread(target=do_subsec, args=(subsec[0],subsec[1]))
             t.start()
-            if threading.active_count() > 4:
+            if threading.active_count() > 1:
                 t.join()
     
         
 if __name__ == '__main__':
-    main(None)
+    main("https://web.uplearn.co.uk/learn/maths-ocr-1/simultaneous-equations")
 
